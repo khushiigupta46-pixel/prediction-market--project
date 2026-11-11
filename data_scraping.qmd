@@ -1,0 +1,66 @@
+---
+title: "data_scraping"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(polymarketR)
+library(httr)
+library(jsonlite)
+```
+
+Idea: Need to compile all (or many) markets related to 2024 US Elections.
+
+Each event contains 1 or more markets. So, we search for all events and then can find all markets from there.
+
+Each event has a unique "slug" (or text identifier) and id. Each event also contains multiple tags (or keywords that are associated with it).
+
+PolymarketR lets us search for events based on text and slugs. We could search across many "text terms", but searching by slugs may give us a more comprehensive portion of the event landscape. 
+
+My current idea: 
+1.) Use basic text queries to search for events with PolymarketR
+2.) From those events, find specific, relevant associated tags
+3.) Use given tags (alongside election dates, etc.) via Polymarket Gamma API to compile list of events that fall under given tags
+4.) Use PolymarketR to identify all markets etc. from given events
+
+```{r}
+event_slugs <- search_events("2024 US election")
+
+event_slugs
+```
+```{r}
+sample_event <- get_event_by_slug("presidential-election-winner-2024")
+```
+
+```{r}
+sample_event$tags[[1]]
+```
+```{r}
+get_events_by_tag <- function(tag_id) {
+  events_url <- str_c("https://gamma-api.polymarket.com/events?tag_id=",
+                    tag_id,
+                    "&closed=true&related_tags=true&end_date_min=2024-11-01&end_date_max=2025-01-31")
+
+  pulled_events <- GET(url = events_url)
+
+  events <- fromJSON(
+    content(pulled_events, as = "text", encoding = "UTF-8")
+  )
+  
+  return(events)
+}
+
+tag_ids <- c("1101", "1102", "185", "589", "57", "24")
+
+event_datasets <- map(tag_ids, get_events_by_tag)
+events_final <- list_rbind(event_datasets) |>
+  distinct(id, .keep_all = TRUE)
+```
+
+```{r}
+events_final
+```
+
+
+
