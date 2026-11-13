@@ -3,22 +3,89 @@ title: "data_scraping"
 format: html
 ---
 
+NOTE: The scraping chunks are set to eval: false - the full price scraping should not be rerun. All data wrangling etc. can be done with polymarket_data.csv.
+
 ```{r}
 library(tidyverse)
 library(polymarketR)
-library(httr)
-library(jsonlite)
 ```
 
+# Pulling election-related closed events and underlying markets with PolymarketR
+
 ```{r}
+#| eval: false
+# search events and filter on closed events
+
 events <- search_events("US Election", max_pages = NULL, events_status = "closed") |>
   filter(closed == "TRUE")
 
 events
 ```
+```{r}
+#| eval: false
+#  obtain markets for listed events
+
+markets <- map(events$slug, get_event_markets)
+```
+```{r}
+#| eval: false
+# bind markets into a singular df and filter out 0 volume markets
+
+markets_data <- markets |>
+  set_names(events$slug) |>
+  map(\(data) mutate(data, across(where(is.atomic), as.character))) |>
+  list_rbind(names_to = "event_slug") |>
+  filter(as.numeric(volumeNum) > 0)
+
+write_csv(select(markets_data, where(is.atomic)), "markets_data.csv")
+```
 
 
+```{r}
+#| eval: false
+# obtain historical prices for listed events
 
+markets_historical <- events$slug |>
+  set_names() |>
+  map(possibly(\(s) get_event_prices_history(s, fidelity = 1440), otherwise = NULL), .progress = TRUE)
+```
 
+```{r}
+#| eval: false
+# save scraped historical prices to avoid re-scraping
+
+prices_df <- markets_historical |>
+  map(\(data) mutate(as_tibble(data), across(everything(), as.character))) |>
+  list_rbind(names_to = "event_slug")
+
+write_csv(prices_df, "markets_historical.csv")
+```
+
+```{r}
+#| eval: false
+# read both market and historical data
+
+market_data <- read_csv("markets_data.csv")
+historical_data <- read_csv("markets_historical.csv")
+```
+```{r}
+#| eval: false
+# Join data, filter redundant repeat of outcomes, select relevant columns
+
+polymarket_data <- inner_join(market_data, historical_data, by = c("id" = "market_id", "event_slug"))
+
+polymarket_data <-polymarket_data |>
+  filter(outcome == "Yes") |>
+  select(event_slug, id, question.x, datetime, price, volumeNum, endDate.x, outcomePrices)
+
+# write final joined dataset for wrangling
+write_csv(polymarket_data, "polymarket_data.csv")
+```
+
+```{r}
+# read final dataset for wrangling
+
+polymarket_data <- read_csv("polymarket_data.csv")
+```
 
 
