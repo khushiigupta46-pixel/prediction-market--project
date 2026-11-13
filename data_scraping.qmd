@@ -41,7 +41,6 @@ markets_data <- markets |>
 write_csv(select(markets_data, where(is.atomic)), "markets_data.csv")
 ```
 
-
 ```{r}
 #| eval: false
 # obtain historical prices for listed events
@@ -145,4 +144,3 @@ polymarket_data_final <- polymarket_data4 |>
 # finally!!!
 polymarket_data_final
 ```
-
