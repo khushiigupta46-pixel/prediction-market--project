@@ -83,6 +83,7 @@ write_csv(polymarket_data, "polymarket_data.csv")
 ```
 
 ```{r}
+#| eval: false
 # read final dataset for wrangling
 
 polymarket_data <- read_csv("polymarket_data.csv")
@@ -143,4 +144,6 @@ polymarket_data_final <- polymarket_data4 |>
 
 # finally!!!
 polymarket_data_final
+
+write_csv(polymarket_data_final, "final_data.csv")
 ```
