@@ -8,6 +8,7 @@ NOTE: The scraping chunks are set to eval: false - the full price scraping shoul
 ```{r}
 library(tidyverse)
 library(polymarketR)
+library(lubridate)
 ```
 
 # Pulling election-related closed events and underlying markets with PolymarketR
@@ -87,5 +88,61 @@ write_csv(polymarket_data, "polymarket_data.csv")
 
 polymarket_data <- read_csv("polymarket_data.csv")
 ```
+```{r}
+# function to select row closest to horizon from final date
 
+closest_to_date <- function(data, horizon) {
+  data2 <- data |>
+    filter(datetime <= endDate.x - days(horizon)) |>
+    group_by(id) |>
+    filter(datetime == max(datetime)) |>
+    ungroup() |>
+    mutate(price = ifelse(
+      endDate.x - datetime > days(horizon) + days(2), NA, price
+    ))
+  
+  return(data2 |> 
+           select(id, price)
+  )
+}
+```
+
+```{r}
+# final wrangling
+
+# eliminate rows with no outcome and simplift outcome column
+polymarket_data2 <- polymarket_data |>
+  filter(outcomePrices == '[\"1\", \"0\"]' | outcomePrices == '[\"0\", \"1\"]') |>
+  mutate(happened = ifelse(
+    outcomePrices == '[\"1\", \"0\"]', 1, 0
+  ))
+
+# add columns for 1w/2w/1m using created function
+polymarket_data3 <- polymarket_data2 |>
+  distinct(id, event_slug, question.x, volumeNum, happened) |>
+  left_join(closest_to_date(polymarket_data2, horizon=7) |>
+            rename(price_1week = price),
+            by = "id") |>
+  left_join(closest_to_date(polymarket_data2, horizon=14) |>
+            rename(price_2week = price),
+            by = "id") |>
+  left_join(closest_to_date(polymarket_data2, horizon=30) |>
+            rename(price_1month = price),
+            by = "id")
+
+# filter missing prices
+polymarket_data4 <- polymarket_data3 |>
+  filter(!is.na(price_1week) & !is.na(price_2week) & !is.na(price_1week))
+  
+# rename columns for clarity
+polymarket_data_final <- polymarket_data4 |>
+  rename(
+    question = question.x,
+    total_vol = volumeNum,
+    outcome = happened,
+  )
+
+# finally!!!
+polymarket_data_final
+```
 
