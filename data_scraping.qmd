@@ -3,11 +3,25 @@ title: "data_scraping"
 format: html
 ---
 
-NOTE: The scraping chunks are set to eval: false - the full price scraping should not be rerun. All data wrangling etc. can be done with polymarket_data.csv.
+NOTE: The scraping chunks are set to eval: false. The full price scraping should not be rerun. The cleaning code reads the intermediate file polymarket_data.csv and saves the cleaned dataset as polymarket_data_final.csv. The scraping and cleaning chunks are skipped when this document renders.
+
+Dataset Description
+
+polymarket_data_final.csv contains 2,507 resolved Polymarket markets across multiple election-related events. Each row represents one Yes/No market. We kept markets with a recorded outcome and a price available for all three time cutoffs. 
+
+Variable descriptions:
+
+1. `id`: Unique identifier for the market.
+2. `event_slug`: Identifier for the Polymarket event that groups related markets.
+3. `question`: The text of the market question.
+4. `total_vol`: Total trading volume for the market.
+5. `outcome`: 1 if the market resolved Yes, 0 if it resolved No.
+6. `price_1week`: Yes price (0 to 1) on the last day with data at least 7 days before the market end date. 
+7. `price_2week`: Same, at least 14 days before the end date. 
+8. `price_1month`: Same, at least 30 days before the end date. 
 
 ```{r}
 library(tidyverse)
-library(polymarketR)
 library(lubridate)
 ```
 
@@ -17,17 +31,21 @@ library(lubridate)
 #| eval: false
 # search events and filter on closed events
 
+library(polymarketR)
+
 events <- search_events("US Election", max_pages = NULL, events_status = "closed") |>
   filter(closed == "TRUE")
 
 events
 ```
+
 ```{r}
 #| eval: false
 #  obtain markets for listed events
 
 markets <- map(events$slug, get_event_markets)
 ```
+
 ```{r}
 #| eval: false
 # bind markets into a singular df and filter out 0 volume markets
@@ -68,6 +86,7 @@ write_csv(prices_df, "markets_historical.csv")
 market_data <- read_csv("markets_data.csv")
 historical_data <- read_csv("markets_historical.csv")
 ```
+
 ```{r}
 #| eval: false
 # Join data, filter redundant repeat of outcomes, select relevant columns
@@ -88,6 +107,7 @@ write_csv(polymarket_data, "polymarket_data.csv")
 
 polymarket_data <- read_csv("polymarket_data.csv")
 ```
+
 ```{r}
 # function to select row closest to horizon from final date
 
@@ -108,9 +128,10 @@ closest_to_date <- function(data, horizon) {
 ```
 
 ```{r}
+#| eval: false
 # final wrangling
 
-# eliminate rows with no outcome and simplift outcome column
+# eliminate rows with no outcome and simplify outcome column
 polymarket_data2 <- polymarket_data |>
   filter(outcomePrices == '[\"1\", \"0\"]' | outcomePrices == '[\"0\", \"1\"]') |>
   mutate(happened = ifelse(
@@ -132,7 +153,7 @@ polymarket_data3 <- polymarket_data2 |>
 
 # filter missing prices
 polymarket_data4 <- polymarket_data3 |>
-  filter(!is.na(price_1week) & !is.na(price_2week) & !is.na(price_1week))
+  filter(!is.na(price_1week), !is.na(price_2week), !is.na(price_1month))
   
 # rename columns for clarity
 polymarket_data_final <- polymarket_data4 |>
@@ -145,5 +166,5 @@ polymarket_data_final <- polymarket_data4 |>
 # finally!!!
 polymarket_data_final
 
-write_csv(polymarket_data_final, "final_data.csv")
+write_csv(polymarket_data_final, "polymarket_data_final.csv")
 ```
